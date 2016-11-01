@@ -1,0 +1,35 @@
+---
+  - name: Hugo | Create S3 bucket
+    s3_bucket:
+      name: "{{ s3_website_bucket_name }}"
+      state: present
+
+  # - name: Hugo | Configure S3 bucket as website (ansible_version ~= 2.2)
+  #   s3_website:
+  #     name: "{{ s3_website_bucket_name }}"
+  #     suffix: "{{ s3_website_index_document }}"
+  #     error_key: "{{ s3_website_error_document }}"
+  #     state: present
+  #   when: ansible_version.major|int == 2 and ansible_version.minor|int == 2
+
+  - name: Hugo | Configure S3 bucket as website (ansible_version < 2.2)
+    command: "aws s3 website s3://{{ s3_website_bucket_name }}/ --index-document {{ s3_website_index_document }} --error-document {{ s3_website_error_document }}"
+    when: ansible_version.major|int == 2 and ansible_version.minor|int < 2
+
+  - command: mktemp -d -t hugo.XXXX
+    register: out
+
+  - set_fact:
+      tmp_dir: "{{ out.stdout }}"
+
+  - copy:
+      content: "{{ s3_website_configuration }}"
+      dest: "{{ tmp_dir }}/website_configuration.json"
+
+  - name: Hugo | Set redirection rules
+    command: "aws s3api put-bucket-website --bucket {{ s3_website_bucket_name }} --website-configuration file://{{ tmp_dir }}/website_configuration.json"
+
+  - file:
+      path: "{{ tmp_dir }}"
+      state: absent
+    when: keep is defined

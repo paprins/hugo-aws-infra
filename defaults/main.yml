@@ -1,0 +1,153 @@
+---
+  verbose: false
+
+  required_variables:
+    - s3_website_domain
+
+  cloudfront_region: us-east-1 # trust me, don't change this ...
+
+  s3_website_bucket_name: "www-{{ s3_website_domain | replace('.','-') }}"
+
+  s3_website_domain: ""
+  s3_website_region: eu-west-1
+  s3_website_s3_endpoint: "{{ s3_website_bucket_name }}.s3-website-{{ s3_website_region }}.amazonaws.com"
+  s3_website_index_document: "index.html"
+  s3_website_error_document: "404.html"
+
+  s3_website_bucket_policy: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Sid": "PublicReadGetObject",
+              "Effect": "Allow",
+              "Principal": "*",
+              "Action": [
+                  "s3:GetObject"
+              ],
+              "Resource": "arn:aws:s3:::{{ s3_website_bucket_name }}/*"
+          }
+      ]
+    }
+
+  s3_website_configuration: |
+    {
+      "IndexDocument": {
+        "Suffix": "index.html"
+      },
+      "RoutingRules": [
+        {
+          "Condition": {
+            "KeyPrefixEquals": "/"
+          },
+          "Redirect": {
+            "ReplaceKeyWith": "index.html"
+          }
+        }
+      ]
+    }
+
+  s3_website_cloudfront_distribution: |
+    {
+      "Comment": "{{ s3_website_domain }}",
+      "CacheBehaviors": {
+        "Quantity": 0
+      },
+      "Logging": {
+        "Bucket": "",
+        "Prefix": "",
+        "Enabled": false,
+        "IncludeCookies": false
+      },
+      "Origins": {
+        "Quantity": 1,
+        "Items": [
+          {
+            "CustomOriginConfig": {
+              "OriginProtocolPolicy": "http-only",
+              "HTTPPort": 80,
+              "HTTPSPort": 443,
+              "OriginSslProtocols": {
+                "Quantity": 3,
+                "Items": [
+                  "TLSv1",
+                  "TLSv1.1",
+                  "TLSv1.2"
+                ]
+              }
+            },
+            "Id": "{{ s3_website_bucket_name }}.amazonaws.com-S3-origin",
+            "DomainName": "{{ s3_website_s3_endpoint }}"
+          }
+        ]
+      },
+      "DefaultRootObject": "index.html",
+      "PriceClass": "PriceClass_100",
+      "Enabled": true,
+      "DefaultCacheBehavior": {
+        "TrustedSigners": {
+          "Enabled": false,
+          "Quantity": 0
+        },
+        "TargetOriginId": "{{ s3_website_bucket_name }}.amazonaws.com-S3-origin",
+        "ViewerProtocolPolicy": "redirect-to-https",
+        "Compress": true,
+        "ForwardedValues": {
+          "Headers": {
+            "Quantity": 0
+          },
+          "Cookies": {
+            "Forward": "none"
+          },
+          "QueryString": false
+        },
+        "AllowedMethods": {
+          "Items": [
+            "HEAD",
+            "GET"
+          ],
+          "CachedMethods": {
+            "Items": [
+              "HEAD",
+              "GET"
+            ],
+            "Quantity": 2
+          },
+          "Quantity": 2
+        },
+        "MinTTL": 0,
+        "DefaultTTL": 300
+      },
+      "CallerReference": "{{ 100000000000000000000 | random }}",
+      "ViewerCertificate": {
+          "SSLSupportMethod": "sni-only",
+          "ACMCertificateArn": "{{ acm_certificate_arn }}",
+          "MinimumProtocolVersion": "TLSv1",
+          "Certificate": "{{ acm_certificate_arn }}",
+          "CertificateSource": "acm"
+      },
+      "CustomErrorResponses": {
+        "Quantity": 2,
+        "Items": [
+          {
+            "ErrorCode": 403,
+            "ResponsePagePath": "/404.html",
+            "ResponseCode": "404",
+            "ErrorCachingMinTTL": 300
+          },
+          {
+            "ErrorCode": 404,
+            "ResponsePagePath": "/404.html",
+            "ResponseCode": "404",
+            "ErrorCachingMinTTL": 300
+          }
+        ]
+      },
+      "Aliases": {
+        "Quantity": 2,
+        "Items": [
+          "{{ s3_website_domain }}",
+          "www.{{ s3_website_domain }}"
+        ]
+      }
+    }

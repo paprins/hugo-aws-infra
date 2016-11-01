@@ -1,0 +1,5 @@
+---
+  - fail:
+      msg: "No value specified for '{{ item }}'"
+    when: ({{ item }} is undefined) or ({{ item|trim == '' }})
+    with_items: required_variables

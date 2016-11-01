@@ -1,0 +1,61 @@
+---
+  - name: Hugo | Enable Cloudfront API
+    command: aws configure set preview.cloudfront true
+
+  - name: Hugo | Create Cloudfront Distribution
+    command: "aws cloudfront create-distribution --distribution-config '{{ s3_website_cloudfront_distribution | to_json }}'"
+    register: cloudfront_response
+    failed_when: cloudfront_response.rc != 0 and 'CNAMEAlreadyExists' not in cloudfront_response.stderr
+
+  - debug:
+      var: cloudfront_response
+    when: verbose
+
+  - set_fact:
+      s3_website_cloudfront_domain: "{{ (cloudfront_response.stdout|from_json)['Distribution']['DomainName'] }}"
+    when: cloudfront_response.rc == 0
+
+  # Note: fallback for when you run it more than 1 time ...
+  - name: Hugo | Get Cloudfront Distribution facts
+    shell: "aws cloudfront list-distributions --query 'DistributionList.Items[?Origins.Items[0].DomainName==`{{ s3_website_s3_endpoint }}`].{Domain:DomainName}' --output text"
+    register: _aws_cli_out
+    when: cloudfront_response.rc != 0
+
+  - set_fact:
+      s3_website_cloudfront_domain: "{{ _aws_cli_out.stdout }}"
+    when: cloudfront_response.rc != 0
+
+  - debug:
+      var: s3_website_cloudfront_domain
+    when: verbose
+
+  # Get cloudfront origin access identity
+  # shell: "aws cloudfront list-cloud-front-origin-access-identities --query 'CloudFrontOriginAccessIdentityList.Items[?contains(Comment,`{{ s3_website_bucket_name }}`)].{Id:S3CanonicalUserId}' --output text"
+  - name: Hugo | Get Cloudfront Origin Access Identity
+    shell: "aws cloudfront list-cloud-front-origin-access-identities --query 'CloudFrontOriginAccessIdentityList.Items[?contains(Comment,`{{ s3_website_bucket_name }}`)].{Id:Id}' --output text"
+    register: _out
+
+  - set_fact:
+      cloudfront_origin_identity: "{{ _out.stdout }}"
+      found_cloudfront_origin_identity: "{{ _out.rc|int == 0 and _out.stdout|trim != '' }}"
+
+  - debug:
+      var: cloudfront_origin_identity
+    when: verbose
+
+  - name: Hugo | Create Cloudfront Origin Access Identity (if not created yet)
+    shell: "aws cloudfront create-cloud-front-origin-access-identity --cloud-front-origin-access-identity-config CallerReference=www-foobar-it-io,Comment=www-foobar-it-io"
+    register: _out
+    when: not found_cloudfront_origin_identity
+
+  - debug: var=_out
+
+# cloudfront_origin_identity: "{{ (_out.stdout|from_json)['CloudFrontOriginAccessIdentity']['S3CanonicalUserId']}}"
+  - set_fact:
+      cloudfront_origin_identity: "{{ (_out.stdout|from_json)['CloudFrontOriginAccessIdentity']['Id']}}"
+    when: not found_cloudfront_origin_identity
+
+  # done? now update S3 Bucket Policy using template
+  - name: Hugo | Set Bucket Policy for S3
+    command: "aws s3api put-bucket-policy --bucket {{ s3_website_bucket_name }} --policy '{{ s3_website_bucket_policy | to_json }}'"
+    when: ansible_version.major|int == 2 and ansible_version.minor|int < 2

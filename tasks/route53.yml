@@ -1,0 +1,25 @@
+---
+  - name: Hugo | Get hosted zone facts
+    route53_facts:
+      zone_name: "{{ s3_website_domain }}"
+    register: _route53_facts
+
+  - debug:
+      var: _route53_facts
+    when: verbose
+
+  # See: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-route53-aliastarget.html
+  - name: Hugo | Create Route53 Alias for Cloudfront Distribution
+    route53:
+      alias: true
+      command: create
+      zone: "{{ s3_website_domain }}"
+      record: "{{ item }}"
+      overwrite: true
+      type: "A"
+      ttl: 300
+      alias_hosted_zone_id: "Z2FDTNDATAQYW2"
+      value: "{{ s3_website_cloudfront_domain }}"
+    with_items:
+      - "{{ s3_website_domain }}"
+      - "www.{{ s3_website_domain}}"

@@ -1,0 +1,33 @@
+---
+  - name: Hugo | Check existing wildcard certificate for {{ s3_website_domain }}
+    command: "aws acm list-certificates --region {{ cloudfront_region }} --query 'CertificateSummaryList[?DomainName==`{{ s3_website_domain }}`].{Arn:CertificateArn}' --output text"
+    register: acm_cli_out
+
+  - set_fact:
+      found_acm_certificate: "{{ acm_cli_out.rc|int == 0 and acm_cli_out.stdout|trim != '' }}"
+
+  - set_fact:
+      acm_certificate_arn: "{{ acm_cli_out.stdout }}"
+    when: found_acm_certificate
+
+  - name: Hugo | Request wildcard certificate for {{ s3_website_domain }}
+    command: "aws acm request-certificate --domain-name {{ s3_website_domain }} --subject-alternative-names *.{{ s3_website_domain }} --region {{ cloudfront_region }} --idempotency-token \"{{ ansible_date_time.epoch }}\""
+    register: acm_cli_out
+    when: not found_acm_certificate
+
+  - set_fact:
+      acm_certificate_arn: "{{ (acm_cli_out.stdout|from_json)['CertificateArn'] }}"
+    when: not found_acm_certificate
+
+  - debug:
+      var: acm_certificate_arn
+    when: verbose
+
+  - name: Waiting for certificate to be be issued. Check your e-mail and approve the request.
+    shell: "aws acm describe-certificate --certificate-arn {{ acm_certificate_arn }} --region {{ cloudfront_region }} --query Certificate.Status --output text"
+    register: _acm_out
+    until: _acm_out.rc|int == 0 and _acm_out.stdout == 'ISSUED'
+    retries: 60
+    delay: 2
+    ignore_errors: yes
+    when: not found_acm_certificate
