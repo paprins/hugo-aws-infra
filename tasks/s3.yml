@@ -4,6 +4,7 @@
       name: "{{ s3_website_bucket_name }}"
       state: present
 
+  # The `s3_website` module is available from ansible 2.2
   # - name: Hugo | Configure S3 bucket as website (ansible_version ~= 2.2)
   #   s3_website:
   #     name: "{{ s3_website_bucket_name }}"

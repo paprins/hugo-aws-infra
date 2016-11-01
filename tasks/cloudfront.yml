@@ -15,7 +15,6 @@
       s3_website_cloudfront_domain: "{{ (cloudfront_response.stdout|from_json)['Distribution']['DomainName'] }}"
     when: cloudfront_response.rc == 0
 
-  # Note: fallback for when you run it more than 1 time ...
   - name: Hugo | Get Cloudfront Distribution facts
     shell: "aws cloudfront list-distributions --query 'DistributionList.Items[?Origins.Items[0].DomainName==`{{ s3_website_s3_endpoint }}`].{Domain:DomainName}' --output text"
     register: _aws_cli_out
@@ -29,8 +28,6 @@
       var: s3_website_cloudfront_domain
     when: verbose
 
-  # Get cloudfront origin access identity
-  # shell: "aws cloudfront list-cloud-front-origin-access-identities --query 'CloudFrontOriginAccessIdentityList.Items[?contains(Comment,`{{ s3_website_bucket_name }}`)].{Id:S3CanonicalUserId}' --output text"
   - name: Hugo | Get Cloudfront Origin Access Identity
     shell: "aws cloudfront list-cloud-front-origin-access-identities --query 'CloudFrontOriginAccessIdentityList.Items[?contains(Comment,`{{ s3_website_bucket_name }}`)].{Id:Id}' --output text"
     register: _out
@@ -48,14 +45,14 @@
     register: _out
     when: not found_cloudfront_origin_identity
 
-  - debug: var=_out
+  - debug:
+      var: _out
+    when: verbose
 
-# cloudfront_origin_identity: "{{ (_out.stdout|from_json)['CloudFrontOriginAccessIdentity']['S3CanonicalUserId']}}"
   - set_fact:
       cloudfront_origin_identity: "{{ (_out.stdout|from_json)['CloudFrontOriginAccessIdentity']['Id']}}"
     when: not found_cloudfront_origin_identity
 
-  # done? now update S3 Bucket Policy using template
   - name: Hugo | Set Bucket Policy for S3
     command: "aws s3api put-bucket-policy --bucket {{ s3_website_bucket_name }} --policy '{{ s3_website_bucket_policy | to_json }}'"
     when: ansible_version.major|int == 2 and ansible_version.minor|int < 2
