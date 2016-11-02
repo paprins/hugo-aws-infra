@@ -1,24 +1,15 @@
 ---
   - include: prereqs.yml
-    tags:
-      - always
+    tags: always
 
   - include: s3.yml
-    tags:
-      - infra
-      - s3
+    tags: s3
 
   - include: acm.yml
-    tags:
-      - infra
-      - acm
+    tags: acm
 
   - include: cloudfront.yml
-    tags:
-      - infra
-      - cloudfront
+    tags: cloudfront
 
   - include: route53.yml
-    tags:
-      - infra
-      - route53
+    tags: route53
